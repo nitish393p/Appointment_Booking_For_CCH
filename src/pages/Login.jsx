@@ -1,6 +1,18 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 
+export function signInErrorMessage(error) {
+  if (error?.status === 429) return "Too many sign-in attempts. Please wait a few minutes and try again.";
+  if (error?.code === "email_not_confirmed") {
+    return "This email is not confirmed. Confirm it in Supabase Authentication, then try again.";
+  }
+  if (error?.code === "invalid_credentials" || /invalid login credentials/i.test(error?.message ?? "")) {
+    return "Supabase did not recognize this email and password. In the linked Supabase project, check Authentication → Users and reset this user's password if needed.";
+  }
+  if (error?.status >= 500) return "The sign-in service is temporarily unavailable. Please try again later.";
+  return "Could not reach the sign-in service. Check your connection and Supabase project configuration.";
+}
+
 export default function Login({ initialError }) {
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
@@ -14,9 +26,13 @@ export default function Login({ initialError }) {
     setBusy(true);
     try {
       const { error } = await signIn(email.trim(), password);
-      if (error) setErr("Sign-in failed. Check your email and password.");
+      if (error) {
+        setPassword("");
+        setErr(signInErrorMessage(error));
+      }
     } catch {
-      setErr("Sign-in failed. Check your connection and try again.");
+      setPassword("");
+      setErr("Could not reach the sign-in service. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -41,7 +57,7 @@ export default function Login({ initialError }) {
           <input type="password" autoComplete="current-password" value={password}
                  onChange={(e) => setPassword(e.target.value)} required />
         </label>
-        {shown && <div className="form-err show">{shown}</div>}
+        {shown && <div className="form-err show" role="alert">{shown}</div>}
         <button className="btn primary block" type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
